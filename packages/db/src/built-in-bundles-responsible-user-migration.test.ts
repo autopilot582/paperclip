@@ -164,6 +164,41 @@ describeEmbeddedPostgres("built-in bundle responsible-user backfill", () => {
     }
   });
 
+  it("prefers an owner over an older member with a null role", async () => {
+    const database = await startEmbeddedPostgresTestDatabase("paperclip-bundles-owner-precedence-");
+    cleanups.push(database.cleanup);
+    const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
+    const companyId = randomUUID();
+    const routineId = randomUUID();
+
+    try {
+      await sql`
+        INSERT INTO "companies" ("id", "name", "issue_prefix")
+        VALUES (${companyId}, 'Owner Precedence Co', 'OPC')
+      `;
+      await sql`
+        INSERT INTO "company_memberships" (
+          "company_id", "principal_type", "principal_id", "status", "membership_role", "created_at"
+        ) VALUES
+          (${companyId}, 'user', 'null-role-user', 'active', NULL, now() - interval '2 days'),
+          (${companyId}, 'user', 'owner-user', 'active', 'owner', now() - interval '1 day')
+      `;
+      await sql`
+        INSERT INTO "routines" ("id", "company_id", "title", "responsible_user_id")
+        VALUES (${routineId}, ${companyId}, 'Bundle routine', ${MARKER})
+      `;
+
+      await sql.unsafe(await readMigration());
+
+      const routines = await sql<{ responsible_user_id: string }[]>`
+        SELECT "responsible_user_id" FROM "routines" WHERE "id" = ${routineId}
+      `;
+      expect(routines[0]?.responsible_user_id).toBe("owner-user");
+    } finally {
+      await sql.end();
+    }
+  });
+
   it("skips a viewer member and falls back to a non-viewer member", async () => {
     const database = await startEmbeddedPostgresTestDatabase("paperclip-bundles-viewer-");
     cleanups.push(database.cleanup);

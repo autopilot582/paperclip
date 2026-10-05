@@ -23,7 +23,7 @@ SET "responsible_user_id" = COALESCE(
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
       AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-    ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+    ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
 )
@@ -39,7 +39,7 @@ WHERE r."company_id" = c."id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
         AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-      ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+      ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
   ) IS NOT NULL;
@@ -54,7 +54,7 @@ SET "responsible_user_id" = COALESCE(
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
       AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-    ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+    ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
 )
@@ -70,7 +70,7 @@ WHERE rr."company_id" = c."id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
         AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-      ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+      ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
   ) IS NOT NULL;
@@ -85,7 +85,7 @@ SET "responsible_user_id" = COALESCE(
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
       AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-    ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+    ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
 )
@@ -101,7 +101,7 @@ WHERE i."company_id" = c."id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
         AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-      ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+      ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
   ) IS NOT NULL;
@@ -116,7 +116,7 @@ SET "responsible_user_id" = COALESCE(
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
       AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-    ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+    ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
 )
@@ -132,7 +132,7 @@ WHERE h."company_id" = c."id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
         AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
-      ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
+      ORDER BY CASE WHEN m."membership_role" = 'owner' THEN 0 ELSE 1 END ASC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
   ) IS NOT NULL;
