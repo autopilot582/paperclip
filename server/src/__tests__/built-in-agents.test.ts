@@ -699,10 +699,11 @@ describeEmbeddedPostgres("built-in agents", () => {
 
     const [installed] = await db.select().from(routines).where(eq(routines.companyId, companyId));
     // Simulate a routine installed by an older release: it stores the synthetic
-    // marker on both the routine and its latest revision.
+    // marker on both the routine and its latest revision. The operator then
+    // customized the title, so the repair must not clobber it.
     await db
       .update(routines)
-      .set({ responsibleUserId: "built-in-bundles" })
+      .set({ responsibleUserId: "built-in-bundles", title: "Operator-customized title" })
       .where(eq(routines.id, installed!.id));
     await db
       .update(routineRevisions)
@@ -710,7 +711,8 @@ describeEmbeddedPostgres("built-in agents", () => {
       .where(eq(routineRevisions.id, installed!.latestRevisionId!));
 
     // Reconcile must detect the marker even though the stock hash is otherwise
-    // current, and repair both rows to the real company default.
+    // current, and repair both rows to the real company default without touching
+    // the operator's customization.
     await builtIns.ensure(companyId, "reflection-coach");
 
     const [repairedRoutine] = await db.select().from(routines).where(eq(routines.id, installed!.id));
@@ -719,6 +721,7 @@ describeEmbeddedPostgres("built-in agents", () => {
       .from(routineRevisions)
       .where(eq(routineRevisions.id, repairedRoutine!.latestRevisionId!));
     expect(repairedRoutine!.responsibleUserId).toBe("responsible-user");
+    expect(repairedRoutine!.title).toBe("Operator-customized title");
     expect(repairedRevision!.responsibleUserId).toBe("responsible-user");
     // Provenance columns are not rewritten to the resolved responsible user.
     expect(repairedRevision!.createdByUserId).toBeNull();

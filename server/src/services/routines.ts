@@ -180,6 +180,8 @@ async function resolveCompanyDefaultResponsibleUserId(db: Db, companyId: string)
     .then((rows) => rows[0] ?? null);
   if (owner?.userId) return owner.userId;
 
+  // A viewer membership cannot authorize issue comments or mutations, so a
+  // viewer is not a valid responsible user even though the membership is active.
   const firstUser = await db
     .select({ userId: companyMemberships.principalId })
     .from(companyMemberships)
@@ -188,6 +190,7 @@ async function resolveCompanyDefaultResponsibleUserId(db: Db, companyId: string)
         eq(companyMemberships.companyId, companyId),
         eq(companyMemberships.principalType, "user"),
         eq(companyMemberships.status, "active"),
+        or(isNull(companyMemberships.membershipRole), ne(companyMemberships.membershipRole, "viewer")),
       ),
     )
     .orderBy(asc(companyMemberships.createdAt), asc(companyMemberships.id))
@@ -2246,10 +2249,14 @@ export function routineService(
       );
       assertRoutineVariableDefinitions(variables);
       const status = normalizeDraftRoutineStatus(input.status, input.assigneeAgentId);
+      // A company can legitimately have no human user yet — a fresh installation
+      // during autoProvision, or a company whose only member was removed. A routine
+      // still needs an owner, but a null responsible user is recoverable (the
+      // runtime falls back to the company default at dispatch); refusing to create
+      // it is not, because it breaks company creation. Only a caller that supplies a
+      // non-marker actor is guaranteed a responsible user, and that is already
+      // resolved above.
       const responsibleUserId = await resolveRoutineResponsibleUserId(db, companyId, actor.userId, input.parentIssueId ?? null);
-      if (!responsibleUserId) {
-        throw unprocessable("Routine requires a responsible user");
-      }
       const createdRoutine = await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
         const [created] = await txDb
@@ -2350,15 +2357,14 @@ export function routineService(
       if (enabledScheduleTriggers) {
         assertScheduleCompatibleVariables(nextVariables);
       }
+      // Same as create: a company with no human user can still update its routines.
+      // A null responsible user is recoverable at dispatch via the company default.
       const responsibleUserId = await resolveRoutineResponsibleUserId(
         db,
         existing.companyId,
         actor.userId,
         patch.parentIssueId === undefined ? existing.parentIssueId : patch.parentIssueId,
       );
-      if (!responsibleUserId) {
-        throw unprocessable("Routine requires a responsible user");
-      }
       const updatedRoutine = await db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
         await tx.execute(sql`select id from ${routines} where ${routines.id} = ${id} for update`);

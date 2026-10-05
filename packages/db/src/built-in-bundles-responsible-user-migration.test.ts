@@ -131,6 +131,74 @@ describeEmbeddedPostgres("built-in bundle responsible-user backfill", () => {
     }
   });
 
+  it("ignores a whitespace-only default and uses the owner fallback instead", async () => {
+    const database = await startEmbeddedPostgresTestDatabase("paperclip-bundles-blank-default-");
+    cleanups.push(database.cleanup);
+    const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
+    const companyId = randomUUID();
+    const routineId = randomUUID();
+
+    try {
+      await sql`
+        INSERT INTO "companies" ("id", "name", "issue_prefix", "default_responsible_user_id")
+        VALUES (${companyId}, 'Blank Default Co', 'BLD', '   ')
+      `;
+      await sql`
+        INSERT INTO "company_memberships" (
+          "company_id", "principal_type", "principal_id", "status", "membership_role", "created_at"
+        ) VALUES (${companyId}, 'user', 'owner-user', 'active', 'owner', now())
+      `;
+      await sql`
+        INSERT INTO "routines" ("id", "company_id", "title", "responsible_user_id")
+        VALUES (${routineId}, ${companyId}, 'Bundle routine', ${MARKER})
+      `;
+
+      await sql.unsafe(await readMigration());
+
+      const routines = await sql<{ responsible_user_id: string }[]>`
+        SELECT "responsible_user_id" FROM "routines" WHERE "id" = ${routineId}
+      `;
+      expect(routines[0]?.responsible_user_id).toBe("owner-user");
+    } finally {
+      await sql.end();
+    }
+  });
+
+  it("skips a viewer member and falls back to a non-viewer member", async () => {
+    const database = await startEmbeddedPostgresTestDatabase("paperclip-bundles-viewer-");
+    cleanups.push(database.cleanup);
+    const sql = postgres(database.connectionString, { max: 1, onnotice: () => {} });
+    const companyId = randomUUID();
+    const routineId = randomUUID();
+
+    try {
+      await sql`
+        INSERT INTO "companies" ("id", "name", "issue_prefix")
+        VALUES (${companyId}, 'Viewer Co', 'VWR')
+      `;
+      await sql`
+        INSERT INTO "company_memberships" (
+          "company_id", "principal_type", "principal_id", "status", "membership_role", "created_at"
+        ) VALUES
+          (${companyId}, 'user', 'viewer-user', 'active', 'viewer', now() - interval '2 days'),
+          (${companyId}, 'user', 'operator-user', 'active', 'operator', now() - interval '1 day')
+      `;
+      await sql`
+        INSERT INTO "routines" ("id", "company_id", "title", "responsible_user_id")
+        VALUES (${routineId}, ${companyId}, 'Bundle routine', ${MARKER})
+      `;
+
+      await sql.unsafe(await readMigration());
+
+      const routines = await sql<{ responsible_user_id: string }[]>`
+        SELECT "responsible_user_id" FROM "routines" WHERE "id" = ${routineId}
+      `;
+      expect(routines[0]?.responsible_user_id).toBe("operator-user");
+    } finally {
+      await sql.end();
+    }
+  });
+
   it("leaves the marker untouched when no real user can be resolved", async () => {
     const database = await startEmbeddedPostgresTestDatabase("paperclip-bundles-unresolved-");
     cleanups.push(database.cleanup);

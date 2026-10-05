@@ -5,22 +5,24 @@
 -- locking the routine's own assignee out of its issues.
 --
 -- Repair existing rows by resolving a real company user with the same fallback
--- order the runtime uses: explicit default_responsible_user_id, then the oldest
--- active owner, then the oldest active member. Rows with no resolvable user are
--- left untouched (never set NULL: a null responsible user skips the
--- user-permission intersection entirely). Idempotent because each statement is
--- predicated on the marker value. Provenance columns created_by_user_id /
--- updated_by_user_id and the activity_log actor_id keep the marker unchanged.
+-- order the runtime uses: a non-blank default_responsible_user_id, then the
+-- oldest active owner, then the oldest active member that is not a viewer (a
+-- viewer cannot authorize issue writes). Rows with no resolvable user are left
+-- untouched (never set NULL: a null responsible user skips the user-permission
+-- intersection entirely). Idempotent because each statement is predicated on the
+-- marker value. Provenance columns created_by_user_id / updated_by_user_id and
+-- the activity_log actor_id keep the marker unchanged.
 
 UPDATE "routines" AS r
 SET "responsible_user_id" = COALESCE(
-  NULLIF(c."default_responsible_user_id", ''),
+  NULLIF(BTRIM(c."default_responsible_user_id"), ''),
   (
     SELECT m."principal_id"
     FROM "company_memberships" AS m
     WHERE m."company_id" = r."company_id"
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
+      AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
     ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
@@ -29,13 +31,14 @@ FROM "companies" AS c
 WHERE r."company_id" = c."id"
   AND r."responsible_user_id" = 'built-in-bundles'
   AND COALESCE(
-    NULLIF(c."default_responsible_user_id", ''),
+    NULLIF(BTRIM(c."default_responsible_user_id"), ''),
     (
       SELECT m."principal_id"
       FROM "company_memberships" AS m
       WHERE m."company_id" = r."company_id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
+        AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
       ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
@@ -43,13 +46,14 @@ WHERE r."company_id" = c."id"
 --> statement-breakpoint
 UPDATE "routine_revisions" AS rr
 SET "responsible_user_id" = COALESCE(
-  NULLIF(c."default_responsible_user_id", ''),
+  NULLIF(BTRIM(c."default_responsible_user_id"), ''),
   (
     SELECT m."principal_id"
     FROM "company_memberships" AS m
     WHERE m."company_id" = rr."company_id"
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
+      AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
     ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
@@ -58,13 +62,14 @@ FROM "companies" AS c
 WHERE rr."company_id" = c."id"
   AND rr."responsible_user_id" = 'built-in-bundles'
   AND COALESCE(
-    NULLIF(c."default_responsible_user_id", ''),
+    NULLIF(BTRIM(c."default_responsible_user_id"), ''),
     (
       SELECT m."principal_id"
       FROM "company_memberships" AS m
       WHERE m."company_id" = rr."company_id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
+        AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
       ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
@@ -72,13 +77,14 @@ WHERE rr."company_id" = c."id"
 --> statement-breakpoint
 UPDATE "issues" AS i
 SET "responsible_user_id" = COALESCE(
-  NULLIF(c."default_responsible_user_id", ''),
+  NULLIF(BTRIM(c."default_responsible_user_id"), ''),
   (
     SELECT m."principal_id"
     FROM "company_memberships" AS m
     WHERE m."company_id" = i."company_id"
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
+      AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
     ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
@@ -87,13 +93,14 @@ FROM "companies" AS c
 WHERE i."company_id" = c."id"
   AND i."responsible_user_id" = 'built-in-bundles'
   AND COALESCE(
-    NULLIF(c."default_responsible_user_id", ''),
+    NULLIF(BTRIM(c."default_responsible_user_id"), ''),
     (
       SELECT m."principal_id"
       FROM "company_memberships" AS m
       WHERE m."company_id" = i."company_id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
+        AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
       ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
@@ -101,13 +108,14 @@ WHERE i."company_id" = c."id"
 --> statement-breakpoint
 UPDATE "heartbeat_runs" AS h
 SET "responsible_user_id" = COALESCE(
-  NULLIF(c."default_responsible_user_id", ''),
+  NULLIF(BTRIM(c."default_responsible_user_id"), ''),
   (
     SELECT m."principal_id"
     FROM "company_memberships" AS m
     WHERE m."company_id" = h."company_id"
       AND m."principal_type" = 'user'
       AND m."status" = 'active'
+      AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
     ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
     LIMIT 1
   )
@@ -116,13 +124,14 @@ FROM "companies" AS c
 WHERE h."company_id" = c."id"
   AND h."responsible_user_id" = 'built-in-bundles'
   AND COALESCE(
-    NULLIF(c."default_responsible_user_id", ''),
+    NULLIF(BTRIM(c."default_responsible_user_id"), ''),
     (
       SELECT m."principal_id"
       FROM "company_memberships" AS m
       WHERE m."company_id" = h."company_id"
         AND m."principal_type" = 'user'
         AND m."status" = 'active'
+        AND (m."membership_role" IS NULL OR m."membership_role" <> 'viewer')
       ORDER BY (m."membership_role" = 'owner') DESC, m."created_at" ASC, m."id" ASC
       LIMIT 1
     )
