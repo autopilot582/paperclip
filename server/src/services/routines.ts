@@ -143,13 +143,26 @@ function legacyExecutionIssueTransientFailureStatus(
   ) ?? null;
 }
 
+// System marker that built-in bundle seeding historically persisted into
+// responsible_user_id. It is not a user account, so no membership can resolve
+// for it and authorization denies every company-scoped call with
+// RESPONSIBLE_USER_UNAVAILABLE. Never treat it as a real responsible user.
+const BUILT_IN_BUNDLES_ACTOR = "built-in-bundles";
+
+function normalizeResponsibleUserId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 async function resolveCompanyDefaultResponsibleUserId(db: Db, companyId: string) {
   const company = await db
     .select({ defaultResponsibleUserId: companies.defaultResponsibleUserId })
     .from(companies)
     .where(eq(companies.id, companyId))
     .then((rows) => rows[0] ?? null);
-  if (company?.defaultResponsibleUserId) return company.defaultResponsibleUserId;
+  const explicitDefault = normalizeResponsibleUserId(company?.defaultResponsibleUserId);
+  if (explicitDefault) return explicitDefault;
 
   const owner = await db
     .select({ userId: companyMemberships.principalId })
@@ -165,18 +178,37 @@ async function resolveCompanyDefaultResponsibleUserId(db: Db, companyId: string)
     .orderBy(asc(companyMemberships.createdAt), asc(companyMemberships.id))
     .limit(1)
     .then((rows) => rows[0] ?? null);
-  return owner?.userId ?? null;
+  if (owner?.userId) return owner.userId;
+
+  const firstUser = await db
+    .select({ userId: companyMemberships.principalId })
+    .from(companyMemberships)
+    .where(
+      and(
+        eq(companyMemberships.companyId, companyId),
+        eq(companyMemberships.principalType, "user"),
+        eq(companyMemberships.status, "active"),
+      ),
+    )
+    .orderBy(asc(companyMemberships.createdAt), asc(companyMemberships.id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+  return firstUser?.userId ?? null;
 }
 
 async function resolveRoutineResponsibleUserId(db: Db, companyId: string, actorUserId: string | null | undefined, parentIssueId?: string | null) {
-  if (actorUserId) return actorUserId;
+  const candidate = normalizeResponsibleUserId(actorUserId);
+  // Reject only the synthetic bundle marker. Every other candidate — including a
+  // real user id — passes through unchanged to preserve existing behavior.
+  if (candidate && candidate !== BUILT_IN_BUNDLES_ACTOR) return candidate;
   if (parentIssueId) {
     const parent = await db
       .select({ responsibleUserId: issues.responsibleUserId, createdByUserId: issues.createdByUserId })
       .from(issues)
       .where(and(eq(issues.companyId, companyId), eq(issues.id, parentIssueId)))
       .then((rows) => rows[0] ?? null);
-    if (parent?.responsibleUserId) return parent.responsibleUserId;
+    const parentResponsible = normalizeResponsibleUserId(parent?.responsibleUserId);
+    if (parentResponsible && parentResponsible !== BUILT_IN_BUNDLES_ACTOR) return parentResponsible;
     if (parent?.createdByUserId) return parent.createdByUserId;
   }
   return resolveCompanyDefaultResponsibleUserId(db, companyId);
@@ -2262,7 +2294,12 @@ export function routineService(
       return createdRoutine;
     },
 
-    update: async (id: string, patch: UpdateRoutine, actor: Actor): Promise<Routine | null> => {
+    update: async (
+      id: string,
+      patch: UpdateRoutine,
+      actor: Actor,
+      options: { replaceResponsibleUser?: boolean } = {},
+    ): Promise<Routine | null> => {
       const existing = await getRoutineById(id);
       if (!existing) return null;
       const nextProjectId = patch.projectId === undefined ? existing.projectId : patch.projectId;
@@ -2355,7 +2392,11 @@ export function routineService(
           activityGateScope: patch.activityGateScope ?? locked.activityGateScope,
           variables: nextVariables,
           env: nextEnv,
-          responsibleUserId: locked.responsibleUserId ?? responsibleUserId,
+          // Only a caller that explicitly repairs a legacy sentinel may override
+          // the stored responsible user; normal updates keep the locked value.
+          responsibleUserId: options.replaceResponsibleUser
+            ? responsibleUserId
+            : locked.responsibleUserId ?? responsibleUserId,
           updatedByAgentId: actor.agentId ?? null,
           updatedByUserId: actor.userId ?? null,
         };
