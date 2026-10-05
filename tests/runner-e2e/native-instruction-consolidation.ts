@@ -86,6 +86,19 @@ export const NATIVE_INSTRUCTION_VARIANTS = {
     "packages/paperclip-runner/src/cli/opencode-app-server-proxy.ts": "6f84af59e2a5e03b2eac48b094da3dfcbf213fe727350c79fbbef4cc554f03d2",
     "packages/paperclip-runner/src/cli/opencode-proxy-input.ts": "a7bf61c79047bf1aa205b32bbecc962ade4934ebac1fbbb5bcaa3a404f868ce7",
   },
+  opencodeFeedbackResponses: {
+    "packages/paperclip-runner/src/backends/runtime-context.ts": "bbdab79c5b1bd57c4ddbc44edfe745b40eb694aa28a465452964109aedd6104b",
+    "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
+    "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
+    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "d2360cdaa63902cbf0c6a6109da452ba7e0b2a5aaa76ee5cab9c63b4bf12e584",
+    "server/src/services/native-runtime/native-completion-feedback.ts": "1f9da911ec5107c6b7543bc1b4134fc74597a29af6ed40101a895045a9e26ce0",
+    "ui/src/lib/issue-reference.ts": "ab578752acc7e185333cb2b701f6db71cedbb44675db042f78fa88417e7b2ddf",
+    "ui/src/components/MarkdownBody.tsx": "f3608614b143667f7dba087be81fd1449e4eac268a203e41256d1c99691c2541",
+    "packages/paperclip-runner/src/backends/native-backend-factory.ts": "63c8aee5548bc1b711a8b92bc348a00b6a7454d7815757380fb719988a90237f",
+    "packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.ts": "e1b40e56cb05f3851f42ebf3d94be6aca8f0a2025820ddfd15ca01439d9eefb6",
+    "packages/paperclip-runner/src/cli/opencode-app-server-proxy.ts": "48b6a672bdd63297ef773736e9768cbc5a968a371e85c9356f7733e4d39282a0",
+    "packages/paperclip-runner/src/cli/opencode-proxy-input.ts": "a7bf61c79047bf1aa205b32bbecc962ade4934ebac1fbbb5bcaa3a404f868ce7",
+  },
 } as const;
 
 // Admission explicitly binds every changed production path as well as comparison setup.
@@ -95,6 +108,7 @@ const comparisonFiles = new Set([
   "packages/paperclip-runner/src/backends/native-backend-factory.test.ts",
   "packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.test.ts",
   "packages/paperclip-runner/src/cli/opencode-proxy-completion.test.ts",
+  "packages/paperclip-runner/src/cli/opencode-proxy-input.test.ts",
   "packages/paperclip-runner/src/live/runnerd-codex-transport.test.ts",
   "packages/paperclip-runner/test/fixtures/fake-opencode-server.mjs",
   "packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts",

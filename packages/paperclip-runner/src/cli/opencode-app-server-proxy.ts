@@ -42,6 +42,7 @@ const pending = new Map<
   string,
   { resolve(value: unknown): void; reject(error: Error): void; retainEnvelope: boolean }
 >();
+let controllerInputClosed = false;
 let nextServerRequestId = 1;
 let driver: OpenCodeServerDriver | null = null;
 let session: HarnessSession | null = null;
@@ -58,6 +59,7 @@ function send(value: unknown): void {
 }
 
 function requestController(method: string, params: unknown, retainEnvelope = false): Promise<unknown> {
+  if (controllerInputClosed) return Promise.reject(new Error("OpenCode controller input is closed"));
   const id = `opencode-${nextServerRequestId++}`;
   send({ id, method, params });
   return new Promise((resolveValue, reject) =>
@@ -411,6 +413,12 @@ input.on("line", (line) => {
     process.stderr.write(`Invalid JSON-RPC input: ${String(error)}\n`);
     return;
   }
+  if (message.method === undefined && message.id !== undefined) {
+    // A command may await this bound response. Queueing the response behind
+    // that command would deadlock completion, interruption and shutdown.
+    void handle(message).catch(failProxy);
+    return;
+  }
   pendingInput = enqueueOpenCodeProxyInput(
     pendingInput,
     async () => {
@@ -461,6 +469,12 @@ function shutdown(exitCode = 0): Promise<void> {
 }
 
 input.on("close", () => {
+  controllerInputClosed = true;
+  for (const waiter of pending.values())
+    waiter.reject(new Error("OpenCode controller input closed before its response"));
+  pending.clear();
+  // Preserve command order and the bootstrap drain. A queued command cannot
+  // create a new unanswered controller request after EOF.
   void pendingInput.then(() => shutdown());
 });
 process.on("SIGTERM", () => {
