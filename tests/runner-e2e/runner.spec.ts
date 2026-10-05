@@ -2699,12 +2699,34 @@ for (const execution of executions) {
           companyId: fixtures.company.id, agentId: fixtures.agent.id, issue: currentIssue as unknown as Record<string, unknown>,
           runs: detailedRuns as unknown as Record<string, unknown>[], comments: comments as unknown as Record<string, unknown>[], events: events as unknown as Record<string, unknown>[],
           initial: nativeInitial, state: { issueIds: issues.map(value => value.id), agentIds: agents.map(value => value.id), documentCount: documents.length, interactionCount: interactions.length },
-          workspaceChanged: workspaceDigest !== nativeInitial.workspaceDigest, marker };
+          workspaceChanged: workspaceDigest !== nativeInitial.workspaceDigest, marker,
+          documentLinkContext: { appOrigin: new URL(page.url()).origin, issuePrefix: fixtures.company.issuePrefix ?? "",
+            issueIdentifier: currentIssue.identifier ?? "", documents } };
         const grade = gradeNativeCompletion(observation);
         const integrity = detailedRuns.flatMap(candidate => nativeRunEventIntegrityFailures(candidate, events));
         await writeSanitizedJson(snapshotsDir, "native-completion.json", { observation, grade, integrity }, secrets);
         matcherResults.push(...grade.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `nativeCompletion.${check.id}`, expected: true }, passed: check.passed, detail: check.detail })));
-        if (!grade.passed || integrity.length) throw new Error(`Native completion qualification failed: ${[...grade.checks.filter(check => !check.passed).map(check => check.id), ...integrity].join("; ")}`);
+        if (!grade.passed || integrity.length) throw new Error(`Native completion matcher failure: ${[...grade.checks.filter(check => !check.passed).map(check => check.id), ...integrity].join("; ")}`);
+        if (execution.task.id === "assigned-skill-explicit-invocation") {
+          const document = documents[0]!;
+          const href = `/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(currentIssue.identifier!)}#document-${encodeURIComponent(document.key)}`;
+          let opened = false;
+          try {
+            const link = page.getByTestId("task-chat-agent-bubble").locator(`a[href=${JSON.stringify(href)}]`).last();
+            await expect(link).toBeVisible({ timeout: 30_000 });
+            await link.click();
+            await expect(page).toHaveURL(new URL(href, observation.documentLinkContext.appOrigin).href);
+            const target = page.locator(`[id=${JSON.stringify(`document-${document.key}`)}]`);
+            await expect(target).toBeVisible();
+            await expect(target).toContainText(marker);
+            opened = true;
+            await captureScreenshot("document-final-link", "Final reply link opens the saved document", "document-final-link.png");
+          } finally {
+            matcherResults.push({ matcher: { kind: "json_path", path: "nativeCompletion.visible-document-navigation", expected: true }, passed: opened,
+              detail: "The rendered final reply link opens this task's saved document and shows its original content marker." });
+            await writeSanitizedJson(snapshotsDir, "native-document-navigation.json", { href, documentKey: document.key, revisionId: document.latestRevisionId, opened }, secrets);
+          }
+        }
       }
       if (runsCompletionUpdateProbe(execution) && credentials.OPENAI_API_KEY) {
         const qualification = completionQualityStatus(completionQuality);

@@ -37,7 +37,7 @@ describe("native instruction comparison admission", () => {
     expect(nativeInstructionVariant(file => baseline.get(file)!)).toBe("baseline");
     const candidate = new Map(files.map(file => [file, readFileSync(new URL(`../../${file}`, import.meta.url))]));
     const currentVariant = nativeInstructionVariant(file => candidate.get(file)!);
-    expect(["baseline", "candidate"]).toContain(currentVariant);
+    expect(["baseline", "candidate", "corrected"]).toContain(currentVariant);
     candidate.set(files[0]!, currentVariant === "candidate" ? baseline.get(files[0]!)! : Buffer.from("unknown source"));
     expect(() => nativeInstructionVariant(file => candidate.get(file)!)).toThrow("Mixed or unknown");
     baseline.set(files[0]!, Buffer.from("unknown source"));

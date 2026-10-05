@@ -158,16 +158,18 @@ afterAll(() => {
   const output = process.env.PAPERCLIP_NATIVE_INSTRUCTION_REPORT;
   if (!output) return;
   if (receipts.length !== 18) throw new Error("Incomplete native instruction measurement; refusing a partial receipt");
-  const sourcePaths = ["runtime-context.ts", "codex-native-backend.ts", "opencode-native-backend.ts"];
-  const source = inspectNativeCompletionSourceMetadata({ repositoryRoot: new URL("../../../../", import.meta.url).pathname,
-    sourceFiles: sourcePaths.map(file => `packages/paperclip-runner/src/backends/${file}`),
+  const repositoryRoot = new URL("../../../../", import.meta.url);
+  const sourcePaths = ["runtime-context.ts", "codex-native-backend.ts", "opencode-native-backend.ts"].map(file => `packages/paperclip-runner/src/backends/${file}`);
+  sourcePaths.push("server/src/services/native-runtime/paperclip-runner-tool-authority.ts");
+  const source = inspectNativeCompletionSourceMetadata({ repositoryRoot: repositoryRoot.pathname,
+    sourceFiles: sourcePaths,
     baseSha: "2a8a99e4a5f69aa803b3f10b982f583e75a87042", variant: "measurement" });
   writeFileSync(output, `${JSON.stringify({
     schema: "paperclip.native-instruction-measurement.v1",
     sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     sourceDirty: !source.immutable,
     sourceMetadata: source.sourceMetadata,
-    sourceHashes: Object.fromEntries(sourcePaths.map(file => [file, sha256(readFileSync(new URL(file, import.meta.url)))])),
+    sourceHashes: Object.fromEntries(sourcePaths.map(file => [file.split("/").at(-1)!, sha256(readFileSync(new URL(file, repositoryRoot)))])),
     fixtureSha256: sha256(readFileSync(new URL(import.meta.url))),
     boundary: "scripted runnerd RPC; complete Paperclip instructions, fixture core tool schemas and turn input",
     providerCalls: 0, tokenCount: null, vendorStockPrompt: "unavailable", modelBehavior: "not_measured",

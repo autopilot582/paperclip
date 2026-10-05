@@ -48,6 +48,7 @@ import {
   agentWakeupRequests,
   chatEndpoints,
   chatConversations,
+  companies,
   documentRevisions,
   heartbeatRuns,
   issueApprovals,
@@ -928,10 +929,15 @@ export class PaperclipRunnerToolAuthority {
         },
       });
       publication = activity.publication;
+      const [target] = await tx.select({ identifier: issues.identifier, issuePrefix: companies.issuePrefix })
+        .from(issues).innerJoin(companies, eq(companies.id, issues.companyId))
+        .where(and(eq(issues.id, this.binding.issueId), eq(issues.companyId, this.binding.companyId)));
+      if (!target) throw new Error("paperclip_runner_document_task_not_found");
       return {
         disposition: "applied",
         created: write.created,
         document: write.document,
+        documentHref: `/${encodeURIComponent(target.issuePrefix)}/issues/${encodeURIComponent(target.identifier ?? this.binding.issueId)}#document-${encodeURIComponent(write.document.key)}`,
       };
     });
     if (publication) publishActivity(publication);

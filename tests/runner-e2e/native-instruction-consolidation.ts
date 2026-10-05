@@ -18,11 +18,19 @@ export const NATIVE_INSTRUCTION_VARIANTS = {
     "packages/paperclip-runner/src/backends/runtime-context.ts": "e7c46e81cc9c93f9a4f805b5091ef08c59ea70c62f208cfda70d6edeed363898",
     "packages/paperclip-runner/src/backends/codex-native-backend.ts": "f276d436391c9e2f0a7e58ce1302b5c9f1a39ac01c148be257f9d455515a31b9",
     "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d54ddde3a3fdffcda3490d813d27b3b4891448e11cd05f61f9bb4b292d9fd6c2",
+    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "2da6963c690a3988bf2617d39e85025600b12a056a61c7b528c3d94ac636f777",
   },
   candidate: {
     "packages/paperclip-runner/src/backends/runtime-context.ts": "cae9075fac25f168972c2be4ddb58052ef2940554458e2757d88a5d0e39805c2",
     "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
     "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
+    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "2da6963c690a3988bf2617d39e85025600b12a056a61c7b528c3d94ac636f777",
+  },
+  corrected: {
+    "packages/paperclip-runner/src/backends/runtime-context.ts": "bbdab79c5b1bd57c4ddbc44edfe745b40eb694aa28a465452964109aedd6104b",
+    "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
+    "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
+    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "d2360cdaa63902cbf0c6a6109da452ba7e0b2a5aaa76ee5cab9c63b4bf12e584",
   },
 } as const;
 
@@ -36,10 +44,15 @@ const comparisonFiles = new Set([
   "tests/runner-e2e/native-completion-git-source.d.mts",
   "tests/runner-e2e/native-completion-defaults.ts",
   "tests/runner-e2e/native-completion-defaults.test.ts",
+  "tests/runner-e2e/native-completion-cases.ts", "tests/runner-e2e/native-completion-scoring.ts",
+  "tests/runner-e2e/native-completion-scoring.test.ts", "tests/runner-e2e/native-completion-content.ts",
+  "tests/runner-e2e/native-completion-content.test.ts",
+  "server/src/services/native-runtime/paperclip-runner-tool-authority.test.ts",
   "tests/runner-e2e/catalog.ts", "tests/runner-e2e/catalog.test.ts", "tests/runner-e2e/launch.ts",
   "tests/runner-e2e/runner.spec.ts", "tests/runner-e2e/live-fixtures.ts",
   "tests/runner-e2e/README.md", "doc/evals.md",
   "doc/plans/2026-10-03-native-completion-consolidation.md",
+  "doc/plans/2026-10-04-native-completion-answer-fix.md",
 ]);
 const git = (...args: string[]) => execFileSync("git", ["--no-replace-objects", ...args], {
   cwd: root, encoding: "utf8", timeout: 60_000,

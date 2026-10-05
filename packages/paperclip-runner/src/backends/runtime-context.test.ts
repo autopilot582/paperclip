@@ -68,6 +68,7 @@ describe("native runtime context files", () => {
       "Obtain one accepted result from paperclip_finish or paperclip_block before writing",
     );
     expect(constraints).toContain("before writing the complete user-facing final response.");
+    expect(constraints).toContain("If blocked, explain why work cannot continue, name the owner and give the unblock action.");
     for (const description of [PRP_COMPLETION_TOOL_DESCRIPTION, PRP_BLOCK_TOOL_DESCRIPTION]) {
       expect(description).toContain("If rejected, correct the report and retry.");
       expect(description).toContain("After acceptance, read the returned outcome");
@@ -89,6 +90,7 @@ describe("native runtime context files", () => {
     expect(constraints).toContain("register_deliverable");
     expect(constraints).toContain("deliverable:");
     expect(constraints).toContain("download link");
+    expect(constraints).toContain("returned documentHref as a clickable link in your final response");
   });
 
   it("marks only authoritative answered-question envelopes as resolved in the outer task", () => {
