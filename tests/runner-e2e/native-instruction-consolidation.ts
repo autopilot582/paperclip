@@ -141,10 +141,19 @@ export function assertNativeInstructionLineage(sourceSha: string, run = git, hos
       || !/^[a-f0-9]{40}$/.test(sourceSha)) throw error;
     // Fetch only this immutable public source, with no provider keys or Git credentials.
     // The final ancestry/diff gates are identical to the full-history local gates.
-    run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", "--depth=8",
-      "https://github.com/paperclipai/paperclip.git", sourceSha);
-    if (run("rev-parse", "HEAD") !== sourceSha) throw new Error("Source changed during ancestry hydration");
-    run("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, sourceSha);
+    let ancestryError = error;
+    for (const depth of [8, 32, 128]) {
+      run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", `--depth=${depth}`,
+        "https://github.com/paperclipai/paperclip.git", sourceSha);
+      if (run("rev-parse", "HEAD") !== sourceSha) throw new Error("Source changed during ancestry hydration");
+      try {
+        run("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, sourceSha);
+        return;
+      } catch (missingAncestor) {
+        ancestryError = missingAncestor;
+      }
+    }
+    throw ancestryError;
   }
 }
 

@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { runnerSuites, buildRunnerMatrix } from "./catalog.js";
 import { gradeNativeDefault, NATIVE_MASTER_DEFAULT_SHA256 } from "./native-completion-defaults.js";
@@ -8,6 +11,37 @@ import { nativeCompletionTasks } from "./native-completion-cases.js";
 import { assertNativeInstructionLineage, assertNativeInstructionSelection, nativeInstructionVariant, validateNativeInstructionMeasurement, NATIVE_INSTRUCTION_BASE_SHA, NATIVE_INSTRUCTION_DEFAULT_SHA256, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_VARIANTS } from "./native-instruction-consolidation.js";
 
 describe("native instruction comparison admission", () => {
+  it("proves real hosted ancestry when the source is more than eight commits from the base", () => {
+    const temporary = mkdtempSync(join(tmpdir(), "native-instruction-lineage-"));
+    const source = join(temporary, "source");
+    const checkout = join(temporary, "checkout");
+    const environment = { ...process.env, GIT_AUTHOR_NAME: "Fixture", GIT_AUTHOR_EMAIL: "fixture@example.invalid",
+      GIT_COMMITTER_NAME: "Fixture", GIT_COMMITTER_EMAIL: "fixture@example.invalid" };
+    const fixtureGit = (cwd: string, args: string[]) => execFileSync("git", args, {
+      cwd, env: environment, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    try {
+      fixtureGit(temporary, ["init", "--quiet", source]);
+      writeFileSync(join(source, "source.txt"), "Immutable source fixture\n");
+      fixtureGit(source, ["add", "source.txt"]);
+      const tree = fixtureGit(source, ["write-tree"]);
+      const base = fixtureGit(source, ["commit-tree", tree, "-m", "base"]);
+      let head = base;
+      for (let index = 0; index < 12; index++)
+        head = fixtureGit(source, ["commit-tree", tree, "-p", head, "-m", `source ${index}`]);
+      fixtureGit(source, ["update-ref", "refs/heads/fixture", head]);
+      fixtureGit(temporary, ["clone", "--quiet", "--depth=1", "--branch=fixture", pathToFileURL(source).href, checkout]);
+      const run = (...args: string[]) => fixtureGit(checkout, ["--no-replace-objects", ...args.map(value =>
+        value === NATIVE_INSTRUCTION_BASE_SHA ? base
+          : value === "https://github.com/paperclipai/paperclip.git" ? pathToFileURL(source).href : value)]);
+      expect(() => run("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, head)).toThrow();
+      expect(() => assertNativeInstructionLineage(head, run, true)).not.toThrow();
+      expect(run("rev-parse", "HEAD")).toBe(head);
+      expect(() => run("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, head)).not.toThrow();
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  });
   it("hydrates bounded hosted history and still requires exact HEAD and real base ancestry", () => {
     const head = "a".repeat(40);
     for (const scenario of ["valid", "changed-head", "no-base", "local", "not-shallow"]) {
@@ -25,10 +59,10 @@ describe("native instruction comparison admission", () => {
       };
       if (scenario === "valid") expect(() => assertNativeInstructionLineage(head, run, true)).not.toThrow();
       else expect(() => assertNativeInstructionLineage(head, run, scenario !== "local")).toThrow();
-      const fetch = calls.find(args => args.includes("fetch"));
-      if (["local", "not-shallow"].includes(scenario)) expect(fetch).toBeUndefined();
-      else expect(fetch).toEqual(["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", "--depth=8",
-        "https://github.com/paperclipai/paperclip.git", head]);
+      const fetches = calls.filter(args => args.includes("fetch"));
+      const depths = ["local", "not-shallow"].includes(scenario) ? [] : scenario === "no-base" ? [8, 32, 128] : [8];
+      expect(fetches).toEqual(depths.map(depth => ["-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+        "fetch", "--no-tags", `--depth=${depth}`, "https://github.com/paperclipai/paperclip.git", head]));
     }
   });
   it("accepts each complete source variant and rejects a mixed variant", () => {
