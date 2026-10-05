@@ -2717,7 +2717,11 @@ for (const execution of executions) {
             await expect(link).toBeVisible({ timeout: 30_000 });
             await link.click();
             await expect(page).toHaveURL(new URL(href, observation.documentLinkContext.appOrigin).href);
-            const target = page.locator(`[id=${JSON.stringify(`document-${document.key}`)}]`);
+            const target = page.locator([
+              `[id=${JSON.stringify(`document-${document.key}`)}]:visible`,
+              `[id=${JSON.stringify(`side-panel-content-document:${document.key}`)}]:visible`,
+            ].join(", "));
+            await expect(target).toHaveCount(1);
             await expect(target).toBeVisible();
             await expect(target).toContainText(marker);
             opened = true;
