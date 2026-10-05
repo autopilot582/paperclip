@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { rehydrateRunnerdItemNotification } from "../../packages/paperclip-runner/src/live/runnerd-codex-transport.js";
-import { gradeNativeCompletion, type NativeCompletionObservation } from "./native-completion-scoring.js";
+import { gradeNativeCompletion as gradeLegacyNativeCompletion, gradeNativeCompletionFinalAnswer as gradeNativeCompletion, type NativeCompletionObservation } from "./native-completion-scoring.js";
 type Row = Record<string, unknown>;
 function sample(blocked = true, compatibility = false): NativeCompletionObservation {
   const body = blocked ? "Deployment remains blocked until access is granted. Release Owner must Grant deployment access. BLOCKED_probe" : "Saved [the requested document](/RUN/issues/RUN-1#document-output).";
@@ -26,6 +26,15 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
 }
 function payload(input: NativeCompletionObservation, index: number): Row { return ((input.events[index]!.payload as Row).prpEvent as Row).payload as Row; }
 describe("native completion independent oracle", () => {
+  it("keeps legacy completion verdicts separate from final-answer diagnostics", () => {
+    const value = sample(false);
+    const text = "Saved the requested document.";
+    (payload(value, 3).item as Row).text = text; value.comments[0]!.body = text;
+    expect(gradeLegacyNativeCompletion(value)).toMatchObject({ schema: "paperclip.native-completion-observation.v2", passed: true });
+    expect(gradeNativeCompletion(value)).toMatchObject({ schema: "paperclip.native-completion-observation.v3", passed: false });
+    expect(gradeLegacyNativeCompletion(value).checks.some(check => check.id === "saved-document-final-link")).toBe(false);
+  });
+
   it("rejects a correct structured blocker whose visible reply only labels it blocked and repeats the action", () => {
     const value = sample();
     const text = "The whole task is blocked. Owner: Release Owner.\n\nUnblock action: Grant deployment access\n\nBLOCKED_probe";

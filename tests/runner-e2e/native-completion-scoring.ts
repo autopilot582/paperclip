@@ -20,6 +20,15 @@ export interface NativeCompletionObservation {
 
 /** Observable tool/result/final sequence, not a claim that the provider consumed feedback. */
 export function gradeNativeCompletion(input: NativeCompletionObservation) {
+  return gradeObservation(input, false);
+}
+
+/** Stricter final-answer checks belong to the instruction comparison only. */
+export function gradeNativeCompletionFinalAnswer(input: NativeCompletionObservation) {
+  return gradeObservation(input, true);
+}
+
+function gradeObservation(input: NativeCompletionObservation, finalAnswer: boolean) {
   const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
   const blocked = input.caseId === "native-blocked-report";
@@ -117,9 +126,9 @@ export function gradeNativeCompletion(input: NativeCompletionObservation) {
     && /\b(?:blocked|cannot proceed|can't proceed|missing|required access|not (?:yet )?granted|awaiting|waiting|unavailable)\b/i.test(finalText)
     && !/\b(?:not blocked|no longer blocked|access (?:is |has been |was )?already granted|completed Grant deployment access)\b/i.test(finalText),
   "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker.");
-  if (blocked) check("visible-blocker-reason", explainsMissingReleaseAccess(finalText),
+  if (finalAnswer && blocked) check("visible-blocker-reason", explainsMissingReleaseAccess(finalText),
     "The persisted provider final independently explains the missing release/deployment access; a blocked label or unblock action alone is insufficient.");
-  else check("saved-document-final-link", linksSavedNativeDocument(finalText, input.documentLinkContext),
+  else if (finalAnswer) check("saved-document-final-link", linksSavedNativeDocument(finalText, input.documentLinkContext),
     "The persisted provider final links this task's one saved, revisioned document at the canonical same-origin anchor.");
   const same = (a: string[], b: string[]) => a.length === b.length && a.every(id => b.includes(id)) && new Set(a).size === a.length;
   check("bounded-durable-work", same(input.state.issueIds, [...input.initial.issueIds, String(input.issue.id)])
@@ -136,6 +145,6 @@ export function gradeNativeCompletion(input: NativeCompletionObservation) {
     check("no-deployment-or-file-work", !input.workspaceChanged && !forbidden,
       "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed.");
   }
-  return { schema: "paperclip.native-completion-observation.v3", passed: checks.every(value => value.passed), checks,
+  return { schema: finalAnswer ? "paperclip.native-completion-observation.v3" : "paperclip.native-completion-observation.v2", passed: checks.every(value => value.passed), checks,
     limitations: ["Exact provider feedback identity/consumption is not measured by the public sequence."] };
 }

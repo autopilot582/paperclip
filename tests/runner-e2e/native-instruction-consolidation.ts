@@ -19,22 +19,40 @@ export const NATIVE_INSTRUCTION_VARIANTS = {
     "packages/paperclip-runner/src/backends/codex-native-backend.ts": "f276d436391c9e2f0a7e58ce1302b5c9f1a39ac01c148be257f9d455515a31b9",
     "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d54ddde3a3fdffcda3490d813d27b3b4891448e11cd05f61f9bb4b292d9fd6c2",
     "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "2da6963c690a3988bf2617d39e85025600b12a056a61c7b528c3d94ac636f777",
+    "server/src/services/native-runtime/native-completion-feedback.ts": "72a8da837e93d1ab6f732bc88cc05de784ed771ab2f538ca1cf4768864cc678b",
+    "ui/src/lib/issue-reference.ts": "ed965e30b6221a455e1dec4c6e51b1659b122828b70c289eeb0d95d9c897d242",
+    "ui/src/components/MarkdownBody.tsx": "07543156b81e51e72cfc77262f135bdb19eaa6bcccf6a3aef60c20faddcca759",
   },
   candidate: {
     "packages/paperclip-runner/src/backends/runtime-context.ts": "cae9075fac25f168972c2be4ddb58052ef2940554458e2757d88a5d0e39805c2",
     "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
     "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
     "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "2da6963c690a3988bf2617d39e85025600b12a056a61c7b528c3d94ac636f777",
+    "server/src/services/native-runtime/native-completion-feedback.ts": "72a8da837e93d1ab6f732bc88cc05de784ed771ab2f538ca1cf4768864cc678b",
+    "ui/src/lib/issue-reference.ts": "ed965e30b6221a455e1dec4c6e51b1659b122828b70c289eeb0d95d9c897d242",
+    "ui/src/components/MarkdownBody.tsx": "07543156b81e51e72cfc77262f135bdb19eaa6bcccf6a3aef60c20faddcca759",
   },
   corrected: {
     "packages/paperclip-runner/src/backends/runtime-context.ts": "bbdab79c5b1bd57c4ddbc44edfe745b40eb694aa28a465452964109aedd6104b",
     "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
     "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
     "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "d2360cdaa63902cbf0c6a6109da452ba7e0b2a5aaa76ee5cab9c63b4bf12e584",
+    "server/src/services/native-runtime/native-completion-feedback.ts": "72a8da837e93d1ab6f732bc88cc05de784ed771ab2f538ca1cf4768864cc678b",
+    "ui/src/lib/issue-reference.ts": "ed965e30b6221a455e1dec4c6e51b1659b122828b70c289eeb0d95d9c897d242",
+    "ui/src/components/MarkdownBody.tsx": "07543156b81e51e72cfc77262f135bdb19eaa6bcccf6a3aef60c20faddcca759",
+  },
+  feedback: {
+    "packages/paperclip-runner/src/backends/runtime-context.ts": "bbdab79c5b1bd57c4ddbc44edfe745b40eb694aa28a465452964109aedd6104b",
+    "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
+    "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
+    "server/src/services/native-runtime/paperclip-runner-tool-authority.ts": "d2360cdaa63902cbf0c6a6109da452ba7e0b2a5aaa76ee5cab9c63b4bf12e584",
+    "server/src/services/native-runtime/native-completion-feedback.ts": "1f9da911ec5107c6b7543bc1b4134fc74597a29af6ed40101a895045a9e26ce0",
+    "ui/src/lib/issue-reference.ts": "ab578752acc7e185333cb2b701f6db71cedbb44675db042f78fa88417e7b2ddf",
+    "ui/src/components/MarkdownBody.tsx": "f3608614b143667f7dba087be81fd1449e4eac268a203e41256d1c99691c2541",
   },
 } as const;
 
-// These are common comparison setup, not additional production changes.
+// Admission explicitly binds every changed production path as well as comparison setup.
 const comparisonFiles = new Set([
   ...Object.keys(NATIVE_INSTRUCTION_VARIANTS.baseline),
   "packages/paperclip-runner/src/backends/runtime-context.test.ts",
@@ -48,6 +66,8 @@ const comparisonFiles = new Set([
   "tests/runner-e2e/native-completion-scoring.test.ts", "tests/runner-e2e/native-completion-content.ts",
   "tests/runner-e2e/native-completion-content.test.ts",
   "server/src/services/native-runtime/paperclip-runner-tool-authority.test.ts",
+  "server/src/services/native-runtime/native-completion-feedback.test.ts",
+  "ui/src/lib/issue-reference.test.ts", "ui/src/components/MarkdownBody.test.tsx",
   "tests/runner-e2e/catalog.ts", "tests/runner-e2e/catalog.test.ts", "tests/runner-e2e/launch.ts",
   "tests/runner-e2e/runner.spec.ts", "tests/runner-e2e/live-fixtures.ts",
   "tests/runner-e2e/README.md", "doc/evals.md",
@@ -146,12 +166,16 @@ function runnerdProof(source: ReturnType<typeof sourceReceipt>) {
 export function validateNativeInstructionMeasurement(measurement: {
   schema: string; sourceSha: string; sourceDirty: boolean; providerCalls: number; fixtureSha256: string;
   sourceHashes: Record<string, string>; receipts: Array<{ provider: string; schema: string; phase: string }>;
+  directOpenCodeReceipts?: Array<{ provider: string; schema: string; phase: string }>;
 }, source: { sourceSha: string; variant: string }) {
   const expected = ['codex', 'acpx', 'opencode'].flatMap(provider => ['v4', 'v5'].flatMap(schema =>
     ['start', 'resume', 'continuation'].map(phase => `${provider}/${schema}/${phase}`))).sort();
   const actual = measurement.receipts.map(value => `${value.provider}/${value.schema}/${value.phase}`).sort();
   const files = NATIVE_INSTRUCTION_VARIANTS[source.variant as keyof typeof NATIVE_INSTRUCTION_VARIANTS];
-  if (measurement.schema !== "paperclip.native-instruction-measurement.v1"
+  const directExpected = ["v4", "v5"].flatMap(schema => ["start", "resume", "continuation"].map(phase => `opencode/${schema}/${phase}`)).sort();
+  const directActual = measurement.directOpenCodeReceipts?.map(value => `${value.provider}/${value.schema}/${value.phase}`).sort();
+  if (measurement.schema !== "paperclip.native-instruction-measurement.v2"
+    || JSON.stringify(directActual) !== JSON.stringify(directExpected)
     || measurement.sourceSha !== source.sourceSha || measurement.sourceDirty !== false || measurement.providerCalls !== 0
     || measurement.fixtureSha256 !== hash(readFileSync(join(root, "packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts")))
     || JSON.stringify(actual) !== JSON.stringify(expected) || !files

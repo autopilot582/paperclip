@@ -1,7 +1,7 @@
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
 import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
-import { gradeNativeCompletion } from "./native-completion-scoring.js";
+import { gradeNativeCompletion, gradeNativeCompletionFinalAnswer } from "./native-completion-scoring.js";
 import { assertNativeBlockerReply } from "./native-blocker-visible.js";
 import { warmManagedFileEvidence } from "./warm-managed-files.js";
 import { gitFinalizationEvidence, gitStreamingEvidence, setupGitStreamingWorkspace } from "./daytona-git-streaming.js";
@@ -2702,12 +2702,13 @@ for (const execution of executions) {
           workspaceChanged: workspaceDigest !== nativeInitial.workspaceDigest, marker,
           documentLinkContext: { appOrigin: new URL(page.url()).origin, issuePrefix: fixtures.company.issuePrefix ?? "",
             issueIdentifier: currentIssue.identifier ?? "", documents } };
-        const grade = gradeNativeCompletion(observation);
+        const grade = execution.suite.id === NATIVE_INSTRUCTION_SUITE
+          ? gradeNativeCompletionFinalAnswer(observation) : gradeNativeCompletion(observation);
         const integrity = detailedRuns.flatMap(candidate => nativeRunEventIntegrityFailures(candidate, events));
         await writeSanitizedJson(snapshotsDir, "native-completion.json", { observation, grade, integrity }, secrets);
         matcherResults.push(...grade.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `nativeCompletion.${check.id}`, expected: true }, passed: check.passed, detail: check.detail })));
         if (!grade.passed || integrity.length) throw new Error(`Native completion matcher failure: ${[...grade.checks.filter(check => !check.passed).map(check => check.id), ...integrity].join("; ")}`);
-        if (execution.task.id === "assigned-skill-explicit-invocation") {
+        if (execution.suite.id === NATIVE_INSTRUCTION_SUITE && execution.task.id === "assigned-skill-explicit-invocation") {
           const document = documents[0]!;
           const href = `/${encodeURIComponent(fixtures.company.issuePrefix!)}/issues/${encodeURIComponent(currentIssue.identifier!)}#document-${encodeURIComponent(document.key)}`;
           let opened = false;

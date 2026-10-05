@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, copyFileSync, chmodSync } from "node:fs";
+import { chmod, lstat, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { PAPERCLIP_SEMANTIC_ACTION_CATALOG } from "../catalog/semantic-action-catalog.js";
@@ -9,6 +12,8 @@ import { NATIVE_RUNTIME_ASSET_SCHEMA, PAPERCLIP_EXECUTION_PROMPT, PAPERCLIP_EXEC
 import { PRP_BLOCK_TOOL_DESCRIPTION, PRP_COMPLETION_TOOL_DESCRIPTION } from "../contracts/completion-result.js";
 import { FakeCodexTransport, WORKSPACE } from "../drivers/codex/codex-app-server-driver.test-support.js";
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
+import { createOpenCodeNativeSessionBackend } from "./opencode-native-backend.js";
+import { nativeSystemInstructions, nativeTaskConstraints } from "./runtime-context.js";
 import { createRunnerdNativeSessionBackend } from "./codex-native-backend.js";
 import { inspectNativeCompletionSourceMetadata } from "../../../../tests/runner-e2e/native-completion-git-source.mjs";
 
@@ -26,6 +31,7 @@ const providers: NativeExecutionInput["provider"][] = [
   { kind: "opencode", model: "openrouter/deepseek/deepseek-v4-flash-0731", permissionMode: "allow" },
 ];
 const receipts: unknown[] = [];
+const directOpenCodeReceipts: unknown[] = [];
 const sha256 = (text: string | Buffer) => createHash("sha256").update(text).digest("hex");
 
 function execution(provider: NativeExecutionInput["provider"], schema: "v4" | "v5"): NativeExecutionInput {
@@ -154,18 +160,72 @@ describe("native instruction payload measurement", () => {
   }
 });
 
+async function makeWritable(root: string): Promise<void> {
+  const info = await lstat(root).catch(() => null);
+  if (!info) return;
+  await chmod(root, info.isDirectory() ? 0o700 : 0o600);
+  if (info.isDirectory()) for (const child of await readdir(root)) await makeWritable(join(root, child));
+}
+
+describe("direct OpenCode HTTP instruction boundary", () => {
+  for (const schema of ["v4", "v5"] as const) it(`captures ${schema} start, resume and continuation with a local fake server`, async () => {
+    const root = mkdtempSync(join(tmpdir(), "native-direct-opencode-"));
+    const command = join(root, "fake-opencode-server.mjs");
+    copyFileSync(resolve("test/fixtures/fake-opencode-server.mjs"), command); chmodSync(command, 0o755);
+    const provider = providers.find(value => value.kind === "opencode")!;
+    const input = execution(provider, schema);
+    const options = { command, runtimeDirectory: root, environment: { PATH: process.env.PATH, OPENROUTER_API_KEY: "fixture-not-a-provider-key" } };
+    const backend = createOpenCodeNativeSessionBackend(input, options);
+    const session = await backend.openSession({ identity: { ...identity, sessionId: `direct-${schema}` }, workingDirectory: WORKSPACE });
+    try {
+      const checkpoint = await session.snapshot();
+      const send = async (current: typeof session, phase: string, value: NativeExecutionInput) => {
+        const envelope = buildNativeModelEnvelope(value, { resumedSession: phase === "continuation" });
+        if ("requestedSkills" in envelope && backend.preparedTaskConstraints) envelope.constraints = [...backend.preparedTaskConstraints];
+        await current.startTurn({ message: { role: "user", text: JSON.stringify(envelope) } });
+        for await (const event of current.events()) { if (event.eventType === "turn.completed") break; if (["turn.failed", "turn.cancelled"].includes(event.eventType)) throw new Error(`Fixture turn failed: ${event.eventType}`); }
+        const requests = readFileSync(join(root, `direct-${schema}`, "data", "fake-prompt-requests.ndjson"), "utf8").trim().split("\n").map(value => JSON.parse(value));
+        const request = requests.at(-1)!;
+        expect(request.providerID).toBe("openrouter"); expect(request.modelID).toBe("deepseek/deepseek-v4-flash-0731");
+        const text = request.parts[0].text as string;
+        if (schema === "v4" && phase === "start") {
+          expect(request.system).toBe(nativeSystemInstructions(input));
+          expect(JSON.parse(text).task.constraints).toEqual(nativeTaskConstraints(input));
+        } else {
+          expect(request.system).toBeUndefined();
+          expect(JSON.parse(text)).toEqual(envelope);
+        }
+        directOpenCodeReceipts.push({ provider: "opencode", schema, phase, request: measure(request),
+          instructions: request.system === undefined ? null : measure(request.system), input: measure(request.parts),
+          boundary: "direct OpenCode HTTP prompt_async; local scripted server, zero provider execution" });
+      };
+      await send(session, "start", input);
+      await session.close({ reason: "measurement" });
+      for (const phase of ["resume", "continuation"] as const) {
+        const value = phase === "continuation" ? parseNativeExecutionInput({ ...input, continuationPrompt: "User update: retain the existing document and finish." }) : input;
+        const next = createOpenCodeNativeSessionBackend(value, options);
+        const recovery = await next.recoverSession!(checkpoint, { signal: new AbortController().signal });
+        expect(recovery.recovered).toBe(true);
+        try { await send(recovery.session!, phase, value); } finally { await recovery.session!.close({ reason: "measurement" }); }
+      }
+    } finally { await session.close({ reason: "cleanup" }); await makeWritable(root); await rm(root, { recursive: true, force: true }); }
+  }, 30_000);
+});
+
 afterAll(() => {
   const output = process.env.PAPERCLIP_NATIVE_INSTRUCTION_REPORT;
   if (!output) return;
-  if (receipts.length !== 18) throw new Error("Incomplete native instruction measurement; refusing a partial receipt");
+  if (receipts.length !== 18 || directOpenCodeReceipts.length !== 6) throw new Error("Incomplete native instruction measurement; refusing a partial receipt");
   const repositoryRoot = new URL("../../../../", import.meta.url);
   const sourcePaths = ["runtime-context.ts", "codex-native-backend.ts", "opencode-native-backend.ts"].map(file => `packages/paperclip-runner/src/backends/${file}`);
-  sourcePaths.push("server/src/services/native-runtime/paperclip-runner-tool-authority.ts");
+  sourcePaths.push("server/src/services/native-runtime/paperclip-runner-tool-authority.ts",
+    "server/src/services/native-runtime/native-completion-feedback.ts",
+    "ui/src/lib/issue-reference.ts", "ui/src/components/MarkdownBody.tsx");
   const source = inspectNativeCompletionSourceMetadata({ repositoryRoot: repositoryRoot.pathname,
     sourceFiles: sourcePaths,
     baseSha: "2a8a99e4a5f69aa803b3f10b982f583e75a87042", variant: "measurement" });
   writeFileSync(output, `${JSON.stringify({
-    schema: "paperclip.native-instruction-measurement.v1",
+    schema: "paperclip.native-instruction-measurement.v2",
     sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     sourceDirty: !source.immutable,
     sourceMetadata: source.sourceMetadata,
@@ -173,6 +233,6 @@ afterAll(() => {
     fixtureSha256: sha256(readFileSync(new URL(import.meta.url))),
     boundary: "scripted runnerd RPC; complete Paperclip instructions, fixture core tool schemas and turn input",
     providerCalls: 0, tokenCount: null, vendorStockPrompt: "unavailable", modelBehavior: "not_measured",
-    receipts,
+    receipts, directOpenCodeReceipts,
   }, null, 2)}\n`);
 });

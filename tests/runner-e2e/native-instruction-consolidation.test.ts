@@ -37,7 +37,7 @@ describe("native instruction comparison admission", () => {
     expect(nativeInstructionVariant(file => baseline.get(file)!)).toBe("baseline");
     const candidate = new Map(files.map(file => [file, readFileSync(new URL(`../../${file}`, import.meta.url))]));
     const currentVariant = nativeInstructionVariant(file => candidate.get(file)!);
-    expect(["baseline", "candidate", "corrected"]).toContain(currentVariant);
+    expect(["baseline", "candidate", "corrected", "feedback"]).toContain(currentVariant);
     candidate.set(files[0]!, currentVariant === "candidate" ? baseline.get(files[0]!)! : Buffer.from("unknown source"));
     expect(() => nativeInstructionVariant(file => candidate.get(file)!)).toThrow("Mixed or unknown");
     baseline.set(files[0]!, Buffer.from("unknown source"));
@@ -74,15 +74,19 @@ describe("native instruction comparison admission", () => {
 
   it("rejects duplicate or incomplete capture, dirty or paid source, and stale fixture evidence", () => {
     const measurement = {
-      schema: "paperclip.native-instruction-measurement.v1", sourceSha: "frozen", sourceDirty: false, providerCalls: 0,
+      schema: "paperclip.native-instruction-measurement.v2", sourceSha: "frozen", sourceDirty: false, providerCalls: 0,
       fixtureSha256: createHash("sha256").update(readFileSync(new URL("../../packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts", import.meta.url))).digest("hex"),
       sourceHashes: Object.fromEntries(Object.entries(NATIVE_INSTRUCTION_VARIANTS.baseline).map(([file, digest]) => [file.split('/').at(-1)!, digest])),
+      directOpenCodeReceipts: ["v4", "v5"].flatMap(schema => ["start", "resume", "continuation"].map(phase => ({ provider: "opencode", schema, phase }))),
       receipts: ['codex', 'acpx', 'opencode'].flatMap(provider => ['v4', 'v5'].flatMap(schema => ['start', 'resume', 'continuation'].map(phase => ({ provider, schema, phase })))),
     };
     const source = { sourceSha: "frozen", variant: "baseline" };
     expect(() => validateNativeInstructionMeasurement(measurement, source)).not.toThrow();
     for (const invalid of [
       { ...measurement, receipts: measurement.receipts.slice(1) },
+      { ...measurement, directOpenCodeReceipts: undefined },
+      { ...measurement, directOpenCodeReceipts: measurement.directOpenCodeReceipts.slice(1) },
+      { ...measurement, directOpenCodeReceipts: measurement.directOpenCodeReceipts.map(() => measurement.directOpenCodeReceipts[0]!) },
       { ...measurement, receipts: measurement.receipts.map(() => measurement.receipts[0]!) },
       { ...measurement, sourceDirty: true }, { ...measurement, providerCalls: 1 },
       { ...measurement, sourceSha: "other" }, { ...measurement, fixtureSha256: "stale" },
