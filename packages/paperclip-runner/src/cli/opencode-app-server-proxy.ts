@@ -17,7 +17,7 @@ import {
   shouldAnnounceOpenCodeProxyTurn,
   shouldForwardOpenCodeProxyItem,
 } from "./opencode-proxy-events.js";
-import { enqueueOpenCodeProxyInput } from "./opencode-proxy-input.js";
+import { enqueueOpenCodeProxyInput, openCodeProxyCompletionFeedback } from "./opencode-proxy-input.js";
 import {
   assertOpenCodeProxyCollaborationMode,
   openCodeProxyCollaborationModes,
@@ -40,7 +40,7 @@ type RpcMessage = {
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 const pending = new Map<
   string,
-  { resolve(value: unknown): void; reject(error: Error): void }
+  { resolve(value: unknown): void; reject(error: Error): void; retainEnvelope: boolean }
 >();
 let nextServerRequestId = 1;
 let driver: OpenCodeServerDriver | null = null;
@@ -57,11 +57,11 @@ function send(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-function requestController(method: string, params: unknown): Promise<unknown> {
+function requestController(method: string, params: unknown, retainEnvelope = false): Promise<unknown> {
   const id = `opencode-${nextServerRequestId++}`;
   send({ id, method, params });
   return new Promise((resolveValue, reject) =>
-    pending.set(id, { resolve: resolveValue, reject }),
+    pending.set(id, { resolve: resolveValue, reject, retainEnvelope }),
   );
 }
 
@@ -126,6 +126,7 @@ async function open(
     ),
     runtimeContext,
     dynamicTools,
+    completionFeedback: openCodeProxyCompletionFeedback((method, params) => requestController(method, params, true)),
     dynamicToolHandler: async (call) =>
       requestController("item/tool/call", {
         threadId: session?.ids().driverSessionId ?? "opening",
@@ -319,7 +320,7 @@ async function handle(message: RpcMessage): Promise<void> {
     else {
       const contentItems = record(message.result).contentItems;
       waiter.resolve(
-        Array.isArray(contentItems)
+        !waiter.retainEnvelope && Array.isArray(contentItems)
           ? (contentItems[0] ?? message.result)
           : message.result,
       );

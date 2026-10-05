@@ -37,7 +37,7 @@ describe("native instruction comparison admission", () => {
     expect(nativeInstructionVariant(file => baseline.get(file)!)).toBe("baseline");
     const candidate = new Map(files.map(file => [file, readFileSync(new URL(`../../${file}`, import.meta.url))]));
     const currentVariant = nativeInstructionVariant(file => candidate.get(file)!);
-    expect(["baseline", "candidate", "corrected", "feedback"]).toContain(currentVariant);
+    expect(["baseline", "candidate", "corrected", "feedback", "opencodeFeedback"]).toContain(currentVariant);
     candidate.set(files[0]!, currentVariant === "candidate" ? baseline.get(files[0]!)! : Buffer.from("unknown source"));
     expect(() => nativeInstructionVariant(file => candidate.get(file)!)).toThrow("Mixed or unknown");
     baseline.set(files[0]!, Buffer.from("unknown source"));
@@ -91,6 +91,7 @@ describe("native instruction comparison admission", () => {
       { ...measurement, sourceDirty: true }, { ...measurement, providerCalls: 1 },
       { ...measurement, sourceSha: "other" }, { ...measurement, fixtureSha256: "stale" },
       { ...measurement, sourceHashes: { ...measurement.sourceHashes, "runtime-context.ts": "wrong" } },
+      { ...measurement, sourceHashes: { ...measurement.sourceHashes, "opencode-app-server-proxy.ts": "wrong" } },
     ]) expect(() => validateNativeInstructionMeasurement(invalid, source)).toThrow();
   });
 });

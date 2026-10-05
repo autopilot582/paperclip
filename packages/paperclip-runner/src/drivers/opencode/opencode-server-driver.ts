@@ -85,6 +85,13 @@ type DynamicToolHandler = (call: {
   arguments: unknown;
 }) => Promise<unknown>;
 
+export type OpenCodeCompletionFeedback = (result: PrpStructuredRunResult, call: {
+  tool: string;
+  callId: string;
+  threadId: string;
+  turnId: string;
+}) => Promise<string>;
+
 export interface OpenCodeServerDriverOptions {
   model: string;
   permissionMode?: "allow" | "ask" | "deny";
@@ -105,6 +112,7 @@ export interface OpenCodeServerDriverOptions {
   environment?: NodeJS.ProcessEnv;
   dynamicTools?: readonly Readonly<Record<string, unknown>>[];
   dynamicToolHandler?: DynamicToolHandler;
+  completionFeedback?: OpenCodeCompletionFeedback;
   onSpawn?: (meta: {
     pid: number;
     processGroupId: number | null;
@@ -344,6 +352,7 @@ export class OpenCodeServerDriver implements HarnessDriver {
             this.#options.systemInstructions ??
             CODEX_SKILLLESS_BASE_INSTRUCTIONS,
           dynamicToolHandler: this.#options.dynamicToolHandler,
+          completionFeedback: this.#options.completionFeedback,
           snapshot,
           now: this.#options.now ?? (() => new Date()),
         });
@@ -380,6 +389,7 @@ class OpenCodeHarnessSession implements HarnessSession {
   readonly #taskEnvelope: CodexTaskEnvelope;
   readonly #systemInstructions: string;
   readonly #dynamicToolHandler?: DynamicToolHandler;
+  readonly #completionFeedback?: OpenCodeCompletionFeedback;
   readonly #now: () => Date;
   readonly #events = new AsyncQueue<PrpEvent>();
   readonly #transcript: PrpEvent[] = [];
@@ -449,6 +459,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     taskEnvelope: CodexTaskEnvelope;
     systemInstructions: string;
     dynamicToolHandler?: DynamicToolHandler;
+    completionFeedback?: OpenCodeCompletionFeedback;
     snapshot: PersistedHarnessSession | null;
     now: () => Date;
   }) {
@@ -465,6 +476,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     this.#taskEnvelope = input.taskEnvelope;
     this.#systemInstructions = input.systemInstructions;
     this.#dynamicToolHandler = input.dynamicToolHandler;
+    this.#completionFeedback = input.completionFeedback;
     this.#now = input.now;
     this.#sendFullContext = input.snapshot === null && this.#conversationMode !== "prepared";
     this.#sourceSequence = input.snapshot?.lastSourceSequence ?? 0;
@@ -960,6 +972,19 @@ class OpenCodeHarnessSession implements HarnessSession {
         const fingerprint = canonicalJson(validation.result);
         if (this.#resultFingerprint && this.#resultFingerprint !== fingerprint)
           throw new Error("A different semantic result was already committed");
+        // Wait for the bound controller before committing or resolving the
+        // provider call. A rejection remains repairable in this same turn.
+        const feedback = this.#completionFeedback
+          ? await this.#completionFeedback(validation.result, {
+              tool, callId: call.callId, threadId: this.#providerSessionId, turnId,
+            })
+          : "Semantic completion accepted.";
+        if (typeof feedback !== "string" || !feedback.trim())
+          throw new Error("Completion feedback omitted its response text");
+        if (this.#closed || this.#activeTurnId !== turnId || this.#terminalTurns.has(turnId))
+          throw new Error("The turn ended while checking completion. The result was not accepted.");
+        if (this.#resultFingerprint && this.#resultFingerprint !== fingerprint)
+          throw new Error("A different semantic result was already committed");
         if (!this.#resultFingerprint) {
           this.#result = structuredClone(validation.result);
           this.#resultFingerprint = fingerprint;
@@ -979,12 +1004,12 @@ class OpenCodeHarnessSession implements HarnessSession {
               type: "tool_result",
               id: call.callId,
               tool_use_id: call.callId,
-              result: "Semantic completion accepted.",
+              result: feedback,
             },
           },
           { turnId, itemId: call.callId },
         );
-        return { accepted: true };
+        return { accepted: true, feedback };
       } catch (error) {
         // A rejected semantic call still completes its tool activity item.
         // Otherwise a later question can appear to have an in-flight tool.

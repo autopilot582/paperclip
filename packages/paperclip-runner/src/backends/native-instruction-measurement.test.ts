@@ -220,7 +220,11 @@ afterAll(() => {
   const sourcePaths = ["runtime-context.ts", "codex-native-backend.ts", "opencode-native-backend.ts"].map(file => `packages/paperclip-runner/src/backends/${file}`);
   sourcePaths.push("server/src/services/native-runtime/paperclip-runner-tool-authority.ts",
     "server/src/services/native-runtime/native-completion-feedback.ts",
-    "ui/src/lib/issue-reference.ts", "ui/src/components/MarkdownBody.tsx");
+    "ui/src/lib/issue-reference.ts", "ui/src/components/MarkdownBody.tsx",
+    "packages/paperclip-runner/src/backends/native-backend-factory.ts",
+    "packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.ts",
+    "packages/paperclip-runner/src/cli/opencode-app-server-proxy.ts",
+    "packages/paperclip-runner/src/cli/opencode-proxy-input.ts");
   const source = inspectNativeCompletionSourceMetadata({ repositoryRoot: repositoryRoot.pathname,
     sourceFiles: sourcePaths,
     baseSha: "2a8a99e4a5f69aa803b3f10b982f583e75a87042", variant: "measurement" });
